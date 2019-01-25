@@ -85,9 +85,7 @@ func move_to(delta, world_position: Vector3):
 	return arrive_distance < ARRIVE_DISTANCE
 
 func _physics_process(delta): 
-	var is_moving = _state == STATES.FOLLOW
-	
-	if is_moving:
+	if _state == STATES.FOLLOW:
 		var arrived_to_next_point = move_to(delta, target_point_world)
 		if arrived_to_next_point:
 			path.remove(0)
