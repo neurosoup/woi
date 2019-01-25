@@ -13,4 +13,5 @@ ground_curve = 0.01
 
 background_mode = 2
 background_sky = SubResource( 1 )
+background_color = Color( 0.0156863, 0.184314, 0.384314, 1 )
 

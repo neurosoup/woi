@@ -5,29 +5,45 @@ var camera
 var gravity = -9.8
 var character
 
+enum STATES { IDLE, FOLLOW, WATCHING }
+var _state = null
+var target_point_world: Vector3
+var path = []
+
 const SPEED = 6
-const ACCELERATION = 3
-const DE_ACCELERATION = 5
-
-var lastMousePos
-
 
 func _ready():
-	# Called when the node is added to the scene for the first time.
-	# Initialization here 
 	character = get_node(".")
-	pass
+	_change_state(STATES.IDLE)
 	
+func _change_state(new_state):
+	if new_state == STATES.FOLLOW:
+		var trip = getTrip()
+		var map = get_parent().get_node("GridMap")
+		path = map.get_world_path(trip[0], trip[1])
+		if path.empty():
+			_change_state(STATES.IDLE)
+			return
+		# The index 0 is the starting cell
+		# we don't want the character to move back to it in this example
+		target_point_world = path[1]
+	_state = new_state
 	
 func _input(event):
 	if event is InputEventMouseButton:
-		if event.pressed:
-			print("position", lastMousePos)
+		if !event.pressed:
+			if _state == STATES.WATCHING:
+				_change_state(STATES.IDLE)
+			else:
+				_change_state(STATES.FOLLOW)
 
-func lookAt():
+func getTrip():
+	var trip = [] 
 	
-	var camera = get_node("target/Camera")
+	var camera = get_node("target/Camera") as Camera
 	var mousePos = get_viewport().get_mouse_position()
+	
+	var start_world_pos = character.get_global_transform().origin;
 	
 	# Project mouse into a 3D ray
 	var ray_origin = camera.project_ray_origin(mousePos)
@@ -40,60 +56,46 @@ func lookAt():
 	var hit = space_state.intersect_ray(from, to)
 	if hit.size() != 0:
 		if hit.collider is GridMap:
-			var gridMap: GridMap = hit.collider
-			var worldLocation = Vector3(hit.position[0], hit.position[1], hit.position[2])
-			var mapLocation = gridMap.world_to_map(worldLocation)
-			print("map location",  mapLocation)
+			var map: GridMap = hit.collider
+			var start = map.world_to_map(start_world_pos)
+			trip.append(start)
+			var destination_world_pos = Vector3(hit.position.x, hit.position.y, hit.position.z)
+			var destination = map.world_to_map(destination_world_pos)
+			trip.append(destination)
+			return trip
+	return null
  
-func _physics_process(delta): 
+func move_to(delta, world_position: Vector3):
+	var MASS = 10.0
+	var ARRIVE_DISTANCE = 1.5
 
-	
-
-	camera = get_node("target/Camera").get_global_transform()
-	
-	
-	lookAt()
-	
-	var dir = Vector3()
-	
-	var isMoving = false
-	
-	if (Input.is_action_pressed("move_fw")):
-		dir = -camera.basis[2] 
-		isMoving = true
-	if (Input.is_action_pressed("move_bw")):
-		dir = camera.basis[2]
-		isMoving = true
-	if (Input.is_action_pressed("move_l")):
-		dir = -camera.basis[0] 
-		isMoving = true
-	if (Input.is_action_pressed("move_r")):
-		dir = camera.basis[0]
-		isMoving = true
-		
-	dir.y = 0
-	dir = dir.normalized()
-	
-	velocity.y += delta * gravity
-	
-	var hv = velocity 
-	hv.y = 0
-	
-	var new_pos = dir * SPEED
-	
-	var acceleration = DE_ACCELERATION
-	if (dir.dot(hv) > 0):
-		acceleration = ACCELERATION
-		
-	hv = hv.linear_interpolate(new_pos, acceleration * delta)
-	
-	velocity.x = hv.x
-	velocity.z = hv.z
-	
+	var desired_velocity = (world_position - global_transform.origin).normalized() * SPEED
+	var steering = desired_velocity - velocity
+	velocity += steering / MASS
+	velocity.y = delta * gravity
 	velocity = move_and_slide(velocity, Vector3(0,1,0))
+	var angle = atan2(velocity.x, velocity.z)
+	var rotation = get_rotation()
+	rotation.y = angle
+	set_rotation(rotation)
 	
-	if isMoving:
-		var angle = atan2(hv.x, hv.z)
-		var rotation = character.get_rotation()
-		rotation.y = angle
-		character.set_rotation(rotation)
+	var position = global_transform.origin
+	var arrive_distance = position.distance_to(world_position)
+	
+	return arrive_distance < ARRIVE_DISTANCE
+
+func _physics_process(delta): 
+	var is_moving = _state == STATES.FOLLOW
+	
+	if is_moving:
+		var arrived_to_next_point = move_to(delta, target_point_world)
+		if arrived_to_next_point:
+			path.remove(0)
+			if path.empty():
+				_change_state(STATES.IDLE)
+				return
+			target_point_world = path[0]
+
+
+func _on_Camera_is_watching():
+	_change_state(STATES.WATCHING)

@@ -19,6 +19,10 @@ config/name="WorldsOfIzzo"
 run/main_scene="res://Map1.tscn"
 config/icon="res://icon.png"
 
+[display]
+
+window/handheld/orientation="portrait"
+
 [input]
 
 move_fw={
@@ -44,4 +48,6 @@ move_r={
 
 [rendering]
 
+vram_compression/import_etc=true
+environment/default_clear_color=Color( 0.223529, 0.196078, 0.196078, 1 )
 environment/default_environment="res://default_env.tres"
